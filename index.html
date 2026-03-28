@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Peptide Catalog</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f9f9f7; color: #1a1a1a; padding: 2rem 1rem; }
+  .container { max-width: 780px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 0.25rem; }
+  .subtitle { font-size: 13px; color: #888; margin-bottom: 1.5rem; }
+  .search-bar { width: 100%; padding: 10px 14px; font-size: 14px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; margin-bottom: 1rem; outline: none; }
+  .search-bar:focus { border-color: #aaa; }
+  .filter-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1.25rem; }
+  .filter-btn { font-size: 12px; padding: 5px 14px; border: 1px solid #ddd; border-radius: 20px; background: #fff; color: #666; cursor: pointer; transition: all 0.15s; }
+  .filter-btn.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+  .count { font-size: 12px; color: #999; margin-bottom: 10px; }
+  .cat-label { font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 0.06em; padding: 16px 0 5px; border-bottom: 1px solid #e8e8e4; margin-bottom: 2px; }
+  .product-row { display: flex; align-items: baseline; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #f0f0ec; gap: 12px; }
+  .product-name { font-weight: 500; font-size: 13px; color: #1a1a1a; min-width: 180px; flex-shrink: 0; }
+  .dosages { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; justify-content: flex-end; }
+  .dose-item { display: flex; flex-direction: column; align-items: center; min-width: 68px; }
+  .dose-mg { font-size: 11px; color: #999; }
+  .dose-price { font-size: 13px; font-weight: 500; color: #1a1a1a; }
+  .no-results { font-size: 14px; color: #aaa; padding: 2rem 0; text-align: center; }
+  @media (max-width: 500px) {
+    .product-name { min-width: 120px; font-size: 12px; }
+    .dose-price { font-size: 12px; }
+  }.top-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+.brand-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo {
+  height: 42px;
+  width: auto;
+}
+
+.brand-name {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="top-bar">
+    <div class="brand-right">
+      <span class="brand-name">Helvetia Peptides</span>
+      <img src="Helvetia.png" class="logo">
+    </div>
+  </div>
+
+  <h1>Peptide Catalog</h1>
+  <p class="subtitle">All prices per vial — CHF</p>
+  <input class="search-bar" type="text" placeholder="Search peptide..." id="search" />
+  <div class="filter-row" id="filters"></div>
+  <div class="count" id="count"></div>
+  <div id="list"></div>
+</div>
+<script>
+const USD_TO_CHF = 0.9;
+const MARKUP = 3;
+const MIN_PRICE = 20;
+
+function roundUp5(n) { return Math.ceil(n / 5) * 5; }
+
+const raw = [
+  {cat:"GLP-1 / Weight", name:"Semaglutide", entries:[{mg:5,$:40},{mg:10,$:65},{mg:15,$:72},{mg:20,$:90},{mg:30,$:120}]},
+  {cat:"GLP-1 / Weight", name:"Tirzepatide", entries:[{mg:5,$:45},{mg:10,$:60},{mg:15,$:80},{mg:20,$:110},{mg:30,$:130},{mg:40,$:170},{mg:45,$:200},{mg:50,$:220},{mg:60,$:245}]},
+  {cat:"GLP-1 / Weight", name:"Retatrutide", entries:[{mg:5,$:70},{mg:10,$:110},{mg:15,$:160},{mg:20,$:185},{mg:30,$:260},{mg:40,$:360},{mg:50,$:420}]},
+  {cat:"GLP-1 / Weight", name:"Cagrilintide", entries:[{mg:5,$:150},{mg:10,$:200}]},
+  {cat:"GLP-1 / Weight", name:"Cagrilintide + Semaglutide", entries:[{mg:5,$:95},{mg:10,$:185}]},
+  {cat:"GLP-1 / Weight", name:"Survodutide", entries:[{mg:10,$:320}]},
+  {cat:"GLP-1 / Weight", name:"Mazdutide", entries:[{mg:5,$:125},{mg:10,$:205}]},
+  {cat:"GLP-1 / Weight", name:"AOD9604", entries:[{mg:5,$:110}]},
+  {cat:"GLP-1 / Weight", name:"Adipotide", entries:[{mg:5,$:200}]},
+  {cat:"GH / IGF", name:"Tesamorelin", entries:[{mg:5,$:90},{mg:10,$:165}]},
+  {cat:"GH / IGF", name:"Sermorelin Acetate", entries:[{mg:5,$:70},{mg:10,$:110}]},
+  {cat:"GH / IGF", name:"CJC-1295 DAC", entries:[{mg:5,$:110}]},
+  {cat:"GH / IGF", name:"CJC-1295 no DAC", entries:[{mg:5,$:75},{mg:10,$:135}]},
+  {cat:"GH / IGF", name:"CJC-1295 no DAC + Ipamorelin", entries:[{mg:10,$:95}]},
+  {cat:"GH / IGF", name:"Ipamorelin", entries:[{mg:5,$:45},{mg:10,$:70}]},
+  {cat:"GH / IGF", name:"GHRP-2", entries:[{mg:5,$:28},{mg:10,$:60}]},
+  {cat:"GH / IGF", name:"GHRP-6", entries:[{mg:5,$:25},{mg:10,$:50}]},
+  {cat:"GH / IGF", name:"Hexarelin", entries:[{mg:2,$:55},{mg:5,$:85}]},
+  {cat:"GH / IGF", name:"HGH", entries:[{mg:10,$:60},{mg:15,$:85}]},
+  {cat:"GH / IGF", name:"IGF-1 LR3", entries:[{mg:0.1,$:35},{mg:1,$:205}]},
+  {cat:"GH / IGF", name:"IGF-DES", entries:[{mg:1,$:55}]},
+  {cat:"GH / IGF", name:"GDF-8", entries:[{mg:1,$:150}]},
+  {cat:"GH / IGF", name:"Follistatin", entries:[{mg:1,$:165}]},
+  {cat:"GH / IGF", name:"SLU-PP-322", entries:[{mg:5,$:120}]},
+  {cat:"Recovery / Heal", name:"BPC-157", entries:[{mg:5,$:50},{mg:10,$:80}]},
+  {cat:"Recovery / Heal", name:"TB500", entries:[{mg:5,$:70},{mg:10,$:120}]},
+  {cat:"Recovery / Heal", name:"BPC 5mg + TB 5mg", entries:[{mg:10,$:90}]},
+  {cat:"Recovery / Heal", name:"BPC 10mg + TB 10mg", entries:[{mg:20,$:170}]},
+  {cat:"Recovery / Heal", name:"GLOW (BPC+GHK-CU+TB500)", entries:[{mg:70,$:185}]},
+  {cat:"Recovery / Heal", name:"KLOW (BPC+TB500+GHK-CU+KPV)", entries:[{mg:null,$:285}]},
+  {cat:"Skin / Anti-age", name:"GHK-CU", entries:[{mg:50,fixedSell:35},{mg:100,fixedSell:45}]},
+  {cat:"Skin / Anti-age", name:"Epithalon", entries:[{mg:10,$:50},{mg:50,$:130}]},
+  {cat:"Skin / Anti-age", name:"Snap-8", entries:[{mg:10,$:40}]},
+  {cat:"Skin / Anti-age", name:"Thymosin Alpha-1", entries:[{mg:5,$:85},{mg:10,$:165}]},
+  {cat:"Skin / Anti-age", name:"Thymalin", entries:[{mg:10,$:60}]},
+  {cat:"Skin / Anti-age", name:"Pinealon", entries:[{mg:5,$:50},{mg:10,$:75},{mg:20,$:120}]},
+  {cat:"Skin / Anti-age", name:"Hyaluronic Acid", entries:[{mg:5,$:200}]},
+  {cat:"Mitochondria", name:"MOTS-c", entries:[{mg:10,$:70},{mg:40,$:180}]},
+  {cat:"Mitochondria", name:"SS-31", entries:[{mg:10,$:85},{mg:50,$:350}]},
+  {cat:"Mitochondria", name:"AICAR", entries:[{mg:50,$:60}]},
+  {cat:"Mitochondria", name:"NAD+", entries:[{mg:100,$:45},{mg:500,$:75}]},
+  {cat:"Mitochondria", name:"FOXO4", entries:[{mg:10,$:520}]},
+  {cat:"Mitochondria", name:"5-amino-1mq", entries:[{mg:5,$:55}]},
+  {cat:"Neuro / Mood", name:"Semax", entries:[{mg:5,$:45},{mg:11,$:55}]},
+  {cat:"Neuro / Mood", name:"Selank", entries:[{mg:5,$:45},{mg:11,$:65}]},
+  {cat:"Neuro / Mood", name:"DSIP", entries:[{mg:5,$:45},{mg:15,$:105}]},
+  {cat:"Neuro / Mood", name:"Oxytocin", entries:[{mg:2,$:28}]},
+  {cat:"Neuro / Mood", name:"VIP", entries:[{mg:5,$:80},{mg:10,$:165}]},
+  {cat:"Neuro / Mood", name:"Ara-290", entries:[{mg:10,$:70}]},
+  {cat:"Neuro / Mood", name:"Cerebrolysin", entries:[{mg:60,$:75}]},
+  {cat:"Sexual / Other", name:"PT-141", entries:[{mg:10,$:60}]},
+  {cat:"Sexual / Other", name:"MT-2 (Melanotan 2)", entries:[{mg:10,$:45}]},
+  {cat:"Sexual / Other", name:"Gonadorelin", entries:[{mg:2,$:38}]},
+  {cat:"Sexual / Other", name:"HCG", entries:[{mg:5000,$:90},{mg:10000,$:170}]},
+  {cat:"Sexual / Other", name:"KissPeptin-10", entries:[{mg:5,$:55},{mg:10,$:90}]},
+  {cat:"Sexual / Other", name:"HMG 75IU", entries:[{mg:75,$:70}]},
+  {cat:"Immune", name:"LL37", entries:[{mg:5,$:85}]},
+  {cat:"Immune", name:"KPV", entries:[{mg:5,$:40},{mg:10,$:55}]},
+  {cat:"Immune", name:"ACE-031", entries:[{mg:1,$:165}]},
+  {cat:"Immune", name:"Glutathione", entries:[{mg:1500,$:80}]},
+  {cat:"Immune", name:"Dermorphin", entries:[{mg:5,$:65}]},
+  {cat:"Immune", name:"EPO 3000IU", entries:[{mg:3000,$:125}]},
+  {cat:"Immune", name:"PEG MGF", entries:[{mg:2,$:105}]},
+  {cat:"Immune", name:"MGF", entries:[{mg:2,$:35}]},
+  {cat:"Hormone", name:"Testosterone Enanthate", entries:[{mg:300,$:85}]},
+  {cat:"Hormone", name:"GLP-1", entries:[{mg:5,$:85}]},
+];
+
+const cats = [];
+const catMap = {};
+
+raw.forEach(p => {
+  const dosages = [];
+  p.entries.forEach(e => {
+    let sell = e.fixedSell !== undefined ? e.fixedSell : roundUp5((e.$ / 10) * USD_TO_CHF * MARKUP);
+    if (sell < MIN_PRICE) return;
+    const mgStr = e.mg === null ? "—" : (e.mg >= 1000 ? e.mg.toLocaleString() + " IU" : e.mg + " mg");
+    dosages.push({ mgStr, sell });
+  });
+  if (!dosages.length) return;
+  if (!catMap[p.cat]) { catMap[p.cat] = []; cats.push(p.cat); }
+  catMap[p.cat].push({ name: p.name, dosages });
+});
+
+const allCats = ["All", ...cats];
+let activeFilter = "All";
+
+const filtersEl = document.getElementById("filters");
+allCats.forEach(c => {
+  const btn = document.createElement("button");
+  btn.className = "filter-btn" + (c === "All" ? " active" : "");
+  btn.textContent = c;
+  btn.onclick = () => {
+    activeFilter = c;
+    document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    render();
+  };
+  filtersEl.appendChild(btn);
+});
+
+function render() {
+  const q = document.getElementById("search").value.toLowerCase();
+  const listEl = document.getElementById("list");
+  listEl.innerHTML = "";
+  let total = 0;
+  const renderCats = activeFilter === "All" ? cats : [activeFilter];
+  renderCats.forEach(cat => {
+    const products = (catMap[cat] || []).filter(p =>
+      p.name.toLowerCase().includes(q) || cat.toLowerCase().includes(q)
+    );
+    if (!products.length) return;
+    const catDiv = document.createElement("div");
+    catDiv.className = "cat-label";
+    catDiv.textContent = cat;
+    listEl.appendChild(catDiv);
+    products.forEach(p => {
+      total++;
+      const row = document.createElement("div");
+      row.className = "product-row";
+      const nameEl = document.createElement("div");
+      nameEl.className = "product-name";
+      nameEl.textContent = p.name;
+      const dosagesEl = document.createElement("div");
+      dosagesEl.className = "dosages";
+      p.dosages.forEach(d => {
+        const item = document.createElement("div");
+        item.className = "dose-item";
+        item.innerHTML = `<span class="dose-mg">${d.mgStr}</span><span class="dose-price">CHF ${d.sell}</span>`;
+        dosagesEl.appendChild(item);
+      });
+      row.appendChild(nameEl);
+      row.appendChild(dosagesEl);
+      listEl.appendChild(row);
+    });
+  });
+  document.getElementById("count").textContent = total + " products";
+  if (!total) {
+    const msg = document.createElement("div");
+    msg.className = "no-results";
+    msg.textContent = "No products found.";
+    listEl.appendChild(msg);
+  }
+}
+
+document.getElementById("search").addEventListener("input", render);
+render();
+</script>
+</body>
+</html>
